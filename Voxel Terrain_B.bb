@@ -3,11 +3,11 @@
 ; Date : (C)2025
 ; ----------------------------------------
 
-Graphics3D 800, 600, 32, 2
+Graphics3D 800,600, 32, 2
 SetBuffer BackBuffer()
 
-Global SCREEN_WIDTH = 800
-Global SCREEN_HEIGHT = 600
+Global SCREEN_WIDTH = GraphicsWidth()
+Global SCREEN_HEIGHT = GraphicsHeight()
 
 Const MAP_N = 1024
 Const SCALE_FACTOR# = 70.0
@@ -17,7 +17,9 @@ Const HEIGHT_SCALE_FACTOR# = 2.0
 Dim heightmap(MAP_N-1, MAP_N-1)
 Dim colormap(MAP_N-1, MAP_N-1)
 
-num$="16"
+SeedRnd MilliSecs()
+
+num$=Str(Rand(0,29))
 
 Global heightImage = LoadImage("map"+num$+".height.png")
 Global colorImage = LoadImage("map"+num$+".Color.png")
@@ -51,6 +53,25 @@ Type Camera
     Field targetX#, targetY#, targetHeight#, targetAngle#, targetPitch#
 End Type
 
+Global objectX#, objectY#, objectHeight#
+objectX = 512    ; Position X de l'objet
+objectY = 512    ; Position Y de l'objet
+
+;; Récupérer la hauteur du terrain à cet endroit
+;Local mapX = Int(objectX) And (MAP_N-1)
+;Local mapY = Int(objectY) And (MAP_N-1)
+;objectHeight = Float(heightmap(mapX, mapY))
+;
+;; Positionner l'objet à la hauteur correcte
+;objectHeight = objectHeight * HEIGHT_SCALE_FACTOR#
+;
+;; Afficher l'objet sur le terrain (par exemple un cube ou une sphère)
+;; Ici, nous utilisons un cube comme exemple
+;Local cube = CreateCube() ; Créer un cube
+;PositionEntity cube, objectX, objectY, objectHeight ; Positionner le cube
+
+
+
 Global cam.Camera = New Camera
 cam\x = 512.0
 cam\y = 512.0
@@ -71,7 +92,7 @@ Global framebuffer = CreateImage(SCREEN_WIDTH, SCREEN_HEIGHT)
 MoveMouse(SCREEN_WIDTH/2, SCREEN_HEIGHT/2)
 
 While Not KeyHit(1)
-    Local moveSpeed# = 2.0
+    Local moveSpeed# = 1.0
     Local mouseSensitivity# = 0.2  ; Sensibilité pour la rotation
     Local pitchHeightMultiplier# = 5.0  ; Multiplicateur pour amplifier l'effet du pitch sur la hauteur
     
@@ -122,8 +143,8 @@ While Not KeyHit(1)
     If cam\targetHeight < 1 Then cam\targetHeight = 1
     
     ; Calculer la hauteur du terrain sous la caméra pour détecter la collision avec le sol
-    Local mapX = Int(cam\targetX) And (MAP_N-1)
-    Local mapY = Int(cam\targetY) And (MAP_N-1)
+	mapX = Int(cam\targetX) And (MAP_N-1)
+	mapY = Int(cam\targetY) And (MAP_N-1)
 	
     Local terrainHeight# = Float(heightmap(mapX, mapY))
     
@@ -198,8 +219,8 @@ While Not KeyHit(1)
     DrawImage framebuffer, 0, 0
     
     Color 0, 0, 0
-    Text 10, 10, "ARROWS TO MOVE / MOUSE FOR YAW (INVERTED) & PITCH"
-    Flip
+    Text 10, 10, "ARROWS TO MOVE / MOUSE FOR YAW & PITCH "+" / X:" + cam\x +" / Y:"+cam\y
+    Flip False
 Wend
 
 FreeImage framebuffer
