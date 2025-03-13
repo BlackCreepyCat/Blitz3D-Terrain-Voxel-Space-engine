@@ -1,9 +1,6 @@
 ; ----------------------------------------
 ; Name : Terrain The Voxel Space engine
 ; Date : (C)2025
-; Site : https://github.com/BlackCreepyCat
-; Inspired from : 
-; https://www.youtube.com/watch?v=bQBY9BM9g_Y
 ; ----------------------------------------
 
 Graphics3D 800, 600, 32, 2
@@ -20,8 +17,10 @@ Const HEIGHT_SCALE_FACTOR# = 2.0
 Dim heightmap(MAP_N-1, MAP_N-1)
 Dim colormap(MAP_N-1, MAP_N-1)
 
-Global heightImage = LoadImage("map17.height.png")
-Global colorImage = LoadImage("map17.color.png")
+num$="16"
+
+Global heightImage = LoadImage("map"+num$+".height.png")
+Global colorImage = LoadImage("map"+num$+".Color.png")
 
 If heightImage = 0 Or colorImage = 0 Then
     RuntimeError "Error: Unable to load heightmap or colormap!"
@@ -77,11 +76,11 @@ While Not KeyHit(1)
     Local pitchHeightMultiplier# = 5.0  ; Multiplicateur pour amplifier l'effet du pitch sur la hauteur
     
     ; Rotation horizontale (yaw) avec la souris, inversée
-    cam\targetAngle = cam\targetAngle + MouseXSpeed() * mouseSensitivity  ; Inversion : + au lieu de -
+    cam\targetAngle = cam\targetAngle + MouseXSpeed() * mouseSensitivity  ; Inversion : + au lieu de - 
     
     ; Inclinaison verticale (pitch) avec la souris
     cam\targetPitch = cam\targetPitch - MouseYSpeed() * mouseSensitivity
-	
+    
     ; Limiter le pitch entre -89° et 89° pour éviter de basculer
     If cam\targetPitch > 89 Then cam\targetPitch = 89
     If cam\targetPitch < -89 Then cam\targetPitch = -89
@@ -106,7 +105,7 @@ While Not KeyHit(1)
         cam\targetY = cam\targetY - sinAngle * cosPitch * moveSpeed
         cam\targetHeight = cam\targetHeight - sinPitch * moveSpeed * pitchHeightMultiplier
     EndIf
-	
+    
     If KeyDown(203) Then  ; Gauche (strafe vers la gauche)
         cam\targetX = cam\targetX + sinAngle * moveSpeed
         cam\targetY = cam\targetY - cosAngle * moveSpeed
@@ -120,12 +119,23 @@ While Not KeyHit(1)
     cam\horizon = 60.0 + (cam\pitch * 5.0)  ; 60 est la valeur de base, ajustée par le pitch
     
     ; Limiter la hauteur pour éviter de descendre sous le sol
-    If cam\targetHeight < 0 Then cam\targetHeight = 0
+    If cam\targetHeight < 1 Then cam\targetHeight = 1
+    
+    ; Calculer la hauteur du terrain sous la caméra pour détecter la collision avec le sol
+    Local mapX = Int(cam\targetX) And (MAP_N-1)
+    Local mapY = Int(cam\targetY) And (MAP_N-1)
+	
+    Local terrainHeight# = Float(heightmap(mapX, mapY))
+    
+    ; Si la caméra descend sous la hauteur du terrain, la corriger
+    If cam\targetHeight < TerrainHeight Then
+        cam\targetHeight = TerrainHeight + 2  ; Décalage léger pour éviter que la caméra ne passe à travers le sol
+    EndIf
     
     ; Lissage des mouvements et rotations
     cam\x = cam\x + (cam\targetX - cam\x) * CAMERA_SMOOTHING
     cam\y = cam\y + (cam\targetY - cam\y) * CAMERA_SMOOTHING
-	
+    
     cam\height = cam\height + (cam\targetHeight - cam\height) * CAMERA_SMOOTHING
     cam\angle = cam\angle + (cam\targetAngle - cam\angle) * CAMERA_SMOOTHING
     cam\pitch = cam\pitch + (cam\targetPitch - cam\pitch) * CAMERA_SMOOTHING
@@ -160,17 +170,20 @@ While Not KeyHit(1)
             rx = rx + deltax
             ry = ry + deltay
             
-            Local mapX = Int(rx) And (MAP_N-1)
-            Local mapY = Int(ry) And (MAP_N-1)
+			mapX = Int(rx) And (MAP_N-1)
+            mapY = Int(ry) And (MAP_N-1)
+			
             Local h# = Float(heightmap(mapX, mapY))
             Local projheight# = (cam\height - h) / (z + 0.0001) * SCALE_FACTOR + cam\horizon
             
             If projheight < tallestheight Then
                 For y = projheight To tallestheight-1
+					
                     If y >= 0 And y < SCREEN_HEIGHT Then
                         WritePixelFast i, y-1, colormap(mapX, mapY), ImageBuffer(framebuffer)
                         WritePixelFast i, y, colormap(mapX, mapY), ImageBuffer(framebuffer)
                     EndIf
+					
                 Next
                 tallestheight = projheight
             EndIf
