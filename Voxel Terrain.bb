@@ -47,7 +47,7 @@ For x = 0 To MAP_N-1
         heightmap(x, y) = ReadPixelFast(x, y, ImageBuffer(heightImage)) And $FF
         colormap(x, y) = ReadPixelFast(x, y, ImageBuffer(colorImage))
         
-        ; Appliquer le facteur de mise à l'échelle de la hauteur
+        ; Appliquer le facteur de mise Ã  l'Ã©chelle de la hauteur
         heightmap(x, y) = Int(heightmap(x, y) * HEIGHT_SCALE_FACTOR#)  ; Multiplier la hauteur
     Next
 Next
@@ -161,7 +161,7 @@ While Not KeyHit(1)
             If projheight < tallestheight Then
                 For y = projheight To tallestheight-1
 					
-                    If y >= 0 And y < SCREEN_HEIGHT Then
+                   If y >= 1 And y < SCREEN_HEIGHT Then
 						WritePixelFast i, y-1, colormap(mapX, mapY), ImageBuffer(framebuffer)
                         WritePixelFast i, y, colormap(mapX, mapY), ImageBuffer(framebuffer)
                     EndIf
