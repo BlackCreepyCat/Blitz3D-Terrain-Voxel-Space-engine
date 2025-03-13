@@ -6,66 +6,52 @@
 ; https://www.youtube.com/watch?v=bQBY9BM9g_Y
 ; ----------------------------------------
 
-; Set the screen resolution to 800x600, 32-bit color depth, and double buffering
 Graphics3D 800, 600, 32, 2
 SetBuffer BackBuffer()
 
-; Define constants for screen dimensions and map size
-Global SCREEN_WIDTH = GraphicsWidth()
-Global SCREEN_HEIGHT = GraphicsHeight()
+Global SCREEN_WIDTH = 800
+Global SCREEN_HEIGHT = 600
+
 Const MAP_N = 1024
 Const SCALE_FACTOR# = 70.0
-Const CAMERA_SMOOTHING# = 0.1  ; Smoothing factor for camera motion
-Const HEIGHT_SCALE_FACTOR# = 2.0  ; Augmenter la hauteur des montagnes
+Const CAMERA_SMOOTHING# = 0.1
+Const HEIGHT_SCALE_FACTOR# = 2.0
 
-; Declare arrays to store height and color maps
 Dim heightmap(MAP_N-1, MAP_N-1)
 Dim colormap(MAP_N-1, MAP_N-1)
 
-; Load the height and color images
 Global heightImage = LoadImage("map17.height.png")
 Global colorImage = LoadImage("map17.color.png")
 
-; Check if the images were successfully loaded
 If heightImage = 0 Or colorImage = 0 Then
     RuntimeError "Error: Unable to load heightmap or colormap!"
 EndIf
 
-; Check if the images have the correct dimensions
 If ImageWidth(heightImage) <> MAP_N Or ImageHeight(heightImage) <> MAP_N Then
     RuntimeError "Error: Incorrect image size!"
 EndIf
 
-; Lock the image buffers to read the pixel data
 LockBuffer ImageBuffer(heightImage)
 LockBuffer ImageBuffer(colorImage)
 
 For x = 0 To MAP_N-1
     For y = 0 To MAP_N-1
-		
-        ; Read pixel data for heightmap and colormap
         heightmap(x, y) = ReadPixelFast(x, y, ImageBuffer(heightImage)) And $FF
         colormap(x, y) = ReadPixelFast(x, y, ImageBuffer(colorImage))
-        
-        ; Appliquer le facteur de mise à l'échelle de la hauteur
-        heightmap(x, y) = Int(heightmap(x, y) * HEIGHT_SCALE_FACTOR#)  ; Multiplier la hauteur
+        heightmap(x, y) = Int(heightmap(x, y) * HEIGHT_SCALE_FACTOR#)
     Next
 Next
 
 UnlockBuffer ImageBuffer(heightImage)
 UnlockBuffer ImageBuffer(colorImage)
-
-; Free the images after reading their data
 FreeImage heightImage
 FreeImage colorImage
 
-; Define the Camera type with fields for position, height, angle, etc.
 Type Camera
-    Field x#, y#, height#, horizon#, zfar#, angle#
-    Field targetX#, targetY#, targetHeight#, targetAngle#
+    Field x#, y#, height#, horizon#, zfar#, angle#, pitch#
+    Field targetX#, targetY#, targetHeight#, targetAngle#, targetPitch#
 End Type
 
-; Initialize the camera object with default values
 Global cam.Camera = New Camera
 cam\x = 512.0
 cam\y = 512.0
@@ -73,83 +59,96 @@ cam\height = 120.0
 cam\horizon = 60.0
 cam\zfar = 700.0
 cam\angle = 0
+cam\pitch = 0
 
-; Set initial target values to match the current camera position
 cam\targetX = cam\x
 cam\targetY = cam\y
 cam\targetHeight = cam\height
 cam\targetAngle = cam\angle
+cam\targetPitch = cam\pitch
 
-; Create a framebuffer image for drawing
 Global framebuffer = CreateImage(SCREEN_WIDTH, SCREEN_HEIGHT)
 
-MoveMouse(SCREEN_WIDTH/2,SCREEN_HEIGHT/2)
+MoveMouse(SCREEN_WIDTH/2, SCREEN_HEIGHT/2)
 
-; Main game loop that runs until the escape key is pressed
 While Not KeyHit(1)
     Local moveSpeed# = 2.0
+    Local mouseSensitivity# = 0.2  ; SensibilitÃ© pour la rotation
+    Local pitchHeightMultiplier# = 5.0  ; Multiplicateur pour amplifier l'effet du pitch sur la hauteur
     
-    ; Check for movement input and update target camera position
-    If KeyDown(200) Then 
-        cam\targetX = cam\targetX + Cos(cam\angle) * moveSpeed
-        cam\targetY = cam\targetY + Sin(cam\angle) * moveSpeed
-    EndIf
-    If KeyDown(208) Then 
-        cam\targetX = cam\targetX - Cos(cam\angle) * moveSpeed
-        cam\targetY = cam\targetY - Sin(cam\angle) * moveSpeed
-    EndIf
+    ; Rotation horizontale (yaw) avec la souris, inversÃ©e
+    cam\targetAngle = cam\targetAngle + MouseXSpeed() * mouseSensitivity  ; Inversion : + au lieu de -
     
-    ; Gestion de la rotation horizontale avec la souris
-    Local mouseSensitivity# = 0.2  ; Sensibilité de la souris (ajustable)
-    cam\targetAngle = cam\targetAngle + MouseXSpeed() * mouseSensitivity  ; Rotation horizontale
+    ; Inclinaison verticale (pitch) avec la souris
+    cam\targetPitch = cam\targetPitch - MouseYSpeed() * mouseSensitivity
+	
+    ; Limiter le pitch entre -89Â° et 89Â° pour Ã©viter de basculer
+    If cam\targetPitch > 89 Then cam\targetPitch = 89
+    If cam\targetPitch < -89 Then cam\targetPitch = -89
     
-    ; Option 2 : Contrôler l'horizon (cam\horizon) avec la souris
-    cam\horizon = cam\horizon - MouseYSpeed() * mouseSensitivity * 10  ; Inclinaison haut/bas
-    
-    ; Optionnel : recentrer la souris au milieu de l'écran pour une rotation continue
+    ; Recentrer la souris
     MoveMouse SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2
     
-    ; Adjust the target height or horizon based on keyboard input (optionnel)
-    If KeyDown(18) Then cam\targetHeight = cam\targetHeight + 10 ; E
-    If KeyDown(32) Then cam\targetHeight = cam\targetHeight - 10 ; D
+    ; Calculer les composantes de mouvement basÃ©es sur l'angle et le pitch
+    Local sinPitch# = Sin(cam\pitch)
+    Local cosPitch# = Cos(cam\pitch)
+    Local sinAngle# = Sin(cam\angle)
+    Local cosAngle# = Cos(cam\angle)
     
-    If KeyDown(31) Then cam\horizon = cam\horizon + 10.5 ; S
-    If KeyDown(17) Then cam\horizon = cam\horizon - 10.5 ; W
+    ; Mouvement contrÃ´lÃ© par les flÃ¨ches (gauche/droite non inversÃ©)
+    If KeyDown(200) Then  ; Haut (avancer)
+        cam\targetX = cam\targetX + cosAngle * cosPitch * moveSpeed
+        cam\targetY = cam\targetY + sinAngle * cosPitch * moveSpeed
+        cam\targetHeight = cam\targetHeight + sinPitch * moveSpeed * pitchHeightMultiplier
+    EndIf
+    If KeyDown(208) Then  ; Bas (reculer)
+        cam\targetX = cam\targetX - cosAngle * cosPitch * moveSpeed
+        cam\targetY = cam\targetY - sinAngle * cosPitch * moveSpeed
+        cam\targetHeight = cam\targetHeight - sinPitch * moveSpeed * pitchHeightMultiplier
+    EndIf
+	
+    If KeyDown(203) Then  ; Gauche (strafe vers la gauche)
+        cam\targetX = cam\targetX + sinAngle * moveSpeed
+        cam\targetY = cam\targetY - cosAngle * moveSpeed
+    EndIf
+    If KeyDown(205) Then  ; Droite (strafe vers la droite)
+        cam\targetX = cam\targetX - sinAngle * moveSpeed
+        cam\targetY = cam\targetY + cosAngle * moveSpeed
+    EndIf
     
-    ; Smooth the camera movement and rotation using linear interpolation
+    ; Ajuster l'horizon en fonction du pitch pour l'effet visuel
+    cam\horizon = 60.0 + (cam\pitch * 5.0)  ; 60 est la valeur de base, ajustÃ©e par le pitch
+    
+    ; Limiter la hauteur pour Ã©viter de descendre sous le sol
+    If cam\targetHeight < 0 Then cam\targetHeight = 0
+    
+    ; Lissage des mouvements et rotations
     cam\x = cam\x + (cam\targetX - cam\x) * CAMERA_SMOOTHING
     cam\y = cam\y + (cam\targetY - cam\y) * CAMERA_SMOOTHING
+	
     cam\height = cam\height + (cam\targetHeight - cam\height) * CAMERA_SMOOTHING
     cam\angle = cam\angle + (cam\targetAngle - cam\angle) * CAMERA_SMOOTHING
-	
-	
-    ; (Le reste de la boucle principale reste inchangé jusqu'à l'affichage du texte)
-    ; Set the buffer for drawing to the framebuffer
+    cam\pitch = cam\pitch + (cam\targetPitch - cam\pitch) * CAMERA_SMOOTHING
+    
     SetBuffer ImageBuffer(framebuffer)
     ClsColor 50, 100, 200
     Cls
     
-    ; Switch back to the back buffer and lock the framebuffer buffer
     SetBuffer BackBuffer()
     LockBuffer ImageBuffer(framebuffer)
     
-    ; Calculate the camera's direction using sine and cosine
-    Local sinangle# = Sin(cam\angle)
-    Local cosangle# = Cos(cam\angle)
+    sinAngle# = Sin(cam\angle)
+    cosAngle# = Cos(cam\angle)
     
-    ; Calculate the four corners of the viewing plane
-    Local plx# = cosangle * cam\zfar + sinangle * cam\zfar
-    Local ply# = sinangle * cam\zfar - cosangle * cam\zfar
-    Local prx# = cosangle * cam\zfar - sinangle * cam\zfar
-    Local pry# = sinangle * cam\zfar + cosangle * cam\zfar
-	
-    ; Loop through each horizontal screen pixel
+    Local plx# = cosAngle * cam\zfar + sinAngle * cam\zfar
+    Local ply# = sinAngle * cam\zfar - cosAngle * cam\zfar
+    Local prx# = cosAngle * cam\zfar - sinAngle * cam\zfar
+    Local pry# = sinAngle * cam\zfar + cosAngle * cam\zfar
+    
     For i = 0 To SCREEN_WIDTH-1
-        ; Calculate the position for each pixel on the map
         Local deltax# = (plx + (prx - plx) / SCREEN_WIDTH * i) / cam\zfar
         Local deltay# = (ply + (pry - ply) / SCREEN_WIDTH * i) / cam\zfar
         
-        ; Initialize camera position and set the tallest height to the screen height
         Local rx# = cam\x
         Local ry# = cam\y
         Local tallestheight# = Float(SCREEN_HEIGHT)
@@ -157,54 +156,38 @@ While Not KeyHit(1)
         Local z# = 1.0
         Local stepZ# = 1.0
         
-        ; Loop through each pixel in the view range, adjusting the z-buffer
         While z < cam\zfar
             rx = rx + deltax
             ry = ry + deltay
             
-            ; Get the map coordinates and height value at the current position
             Local mapX = Int(rx) And (MAP_N-1)
             Local mapY = Int(ry) And (MAP_N-1)
-            Local h# = Float(heightmap(mapX, mapY))  
-            Local projheight# = (cam\height - h) / (z + 0.0001) * SCALE_FACTOR + cam\horizon  
+            Local h# = Float(heightmap(mapX, mapY))
+            Local projheight# = (cam\height - h) / (z + 0.0001) * SCALE_FACTOR + cam\horizon
             
-            ; Draw pixels if the projected height is less than the tallest height
             If projheight < tallestheight Then
                 For y = projheight To tallestheight-1
-					
                     If y >= 0 And y < SCREEN_HEIGHT Then
-						WritePixelFast i, y-1, colormap(mapX, mapY), ImageBuffer(framebuffer)
+                        WritePixelFast i, y-1, colormap(mapX, mapY), ImageBuffer(framebuffer)
                         WritePixelFast i, y, colormap(mapX, mapY), ImageBuffer(framebuffer)
                     EndIf
-					
                 Next
                 tallestheight = projheight
             EndIf
             
-            ; Increase stepZ for faster movement at greater distances
             If z > cam\zfar / 2 Then stepZ = 2.0 Else stepZ = 1.0
-            
-            ; Increment z to move further into the scene
             z = z + stepZ
         Wend
     Next
     
-    ; Unlock the framebuffer buffer
     UnlockBuffer ImageBuffer(framebuffer)
     
-    ; Draw the framebuffer to the screen and flip buffers
     DrawImage framebuffer, 0, 0
-	
-	Color 0,0,0
-	Text 10,10," ARROWS TO MOVE / Z&S TO ROTATE / E&D TO UP DOWN
-    Flip
     
+    Color 0, 0, 0
+    Text 10, 10, "ARROWS TO MOVE / MOUSE FOR YAW (INVERTED) & PITCH"
+    Flip
 Wend
 
-
-; Free the framebuffer image after use
 FreeImage framebuffer
 End
-
-;~IDEal Editor Parameters:
-;~C#Blitz3D
