@@ -200,7 +200,7 @@ While Not KeyHit(1)
             If projheight < tallestheight Then
                 For y = projheight To tallestheight-1
 					
-                    If y >= 0 And y < SCREEN_HEIGHT Then
+                   If y >= 1 And y < SCREEN_HEIGHT Then
                         WritePixelFast i, y-1, colormap(mapX, mapY), ImageBuffer(framebuffer)
                         WritePixelFast i, y, colormap(mapX, mapY), ImageBuffer(framebuffer)
                     EndIf
